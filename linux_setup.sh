@@ -18,12 +18,20 @@ if [ -z "$USER" ]; then USER=$(whoami); fi
 # ==============================================================================
 # 1. INSTALLATIONS DES PAQUETS DE BASE
 # ==============================================================================
-echo "Initialisation des dépôts et installation de la base Sysadmin..."
+echo "Initialisation des dépôts..."
+
+if [ -f /etc/debian_version ]; then
+    echo "Configuration des dépôts Debian (Contrib & Non-Free)..."
+    sudo apt-get install -y software-properties-common
+    sudo apt-add-repository contrib -y
+    sudo apt-add-repository non-free -y
+    sudo apt-add-repository non-free-firmware -y
+fi
+
 apt update
 
 apt install -y whiptail flatpak zip locate ncdu curl git screen dnsutils \
-               net-tools sudo lynx software-properties-common lsb-release \
-               winbind samba
+               net-tools sudo lynx lsb-release winbind samba
 
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
@@ -34,12 +42,13 @@ flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.f
 CHOIX_PAQUETS=$(whiptail --title "Sélection des Logiciels" --checklist \
 "Appuyez sur ESPACE pour cocher/décocher, puis ENTRÉE pour valider :" 22 85 15 \
 "fastfetch"       "Affiche les infos du système au démarrage" ON \
-"htop"            "Gestionnaire de tâches classique en CLI" ON \
-"btop"            "Gestionnaire de tâches moderne et magnifique" ON \
+"htop"            "Gestionnaire de tâches classique en CLI" OFF \
+"btop"            "Gestionnaire de tâches moderne et magnifique" OFF \
 "vim"             "L'éditeur de texte incontournable (Sera mis par défaut)" ON \
 "openssh-server"  "Serveur SSH pour contrôler la machine à distance" ON \
-"wireshark"       "Analyseur de protocoles réseau" ON \
+"wireshark"       "Analyseur de protocoles réseau" OFF \
 "cifs-utils"      "Outils de montage de partages réseau Windows/NAS" ON \
+"thunderbird"     "Client de messagerie et calendrier complet" ON \
 "build-essential" "Compilateurs C/C++ et utilitaires de dev (make)" OFF \
 "docker.io"       "Moteur de conteneurs Docker" OFF \
 "filezilla"       "Client FTP/SFTP graphique" OFF \
@@ -146,14 +155,18 @@ if [ ! -z "$APTS_A_INSTALLER" ]; then
 fi
 
 # 2. Installation des applications choisies via FLATPAK
-if [[ "$LISTE_PAQUETS" =~ "vscode" ]];      then flatpak install flathub com.visualstudio.code -y; fi
-if [[ "$LISTE_PAQUETS" =~ "bitwarden" ]];   then flatpak install flathub com.bitwarden.desktop -y; fi
-if [[ "$LISTE_PAQUETS" =~ "protonvpn" ]];   then flatpak install flathub ch.protonvpn.www -y; fi
-if [[ "$LISTE_PAQUETS" =~ "spotify" ]];     then flatpak install flathub com.spotify.Client -y; fi
-if [[ "$LISTE_PAQUETS" =~ "discord" ]];     then flatpak install flathub com.discordapp.Discord -y; fi
-if [[ "$LISTE_PAQUETS" =~ "heroic" ]];      then flatpak install flathub com.heroicgameslauncher.hgl -y; fi
-if [[ "$LISTE_PAQUETS" =~ "protonup-qt" ]]; then flatpak install flathub net.davidotek.pupgui2 -y; fi
-if [[ "$LISTE_PAQUETS" =~ "minecraft" ]];   then flatpak install flathub com.mojang.Minecraft -y; fi
+FLATPAK_BIN="/usr/bin/flatpak"
+
+if [ -x "$FLATPAK_BIN" ]; then
+    if [[ "$LISTE_PAQUETS" =~ "vscode" ]];      then $FLATPAK_BIN install flathub com.visualstudio.code -y; fi
+    if [[ "$LISTE_PAQUETS" =~ "bitwarden" ]];   then $FLATPAK_BIN install flathub com.bitwarden.desktop -y; fi
+    if [[ "$LISTE_PAQUETS" =~ "protonvpn" ]];   then $FLATPAK_BIN install flathub ch.protonvpn.www -y; fi
+    if [[ "$LISTE_PAQUETS" =~ "spotify" ]];     then $FLATPAK_BIN install flathub com.spotify.Client -y; fi
+    if [[ "$LISTE_PAQUETS" =~ "discord" ]];     then $FLATPAK_BIN install flathub com.discordapp.Discord -y; fi
+    if [[ "$LISTE_PAQUETS" =~ "heroic" ]];      then $FLATPAK_BIN install flathub com.heroicgameslauncher.hgl -y; fi
+    if [[ "$LISTE_PAQUETS" =~ "protonup-qt" ]]; then $FLATPAK_BIN install flathub net.davidotek.pupgui2 -y; fi
+    if [[ "$LISTE_PAQUETS" =~ "minecraft" ]];   then $FLATPAK_BIN install flathub com.mojang.Minecraft -y; fi
+fi
 
 # Post-configuration de Wireshark pour pouvoir l'utiliser sans être Root
 if [[ "$LISTE_PAQUETS" =~ "wireshark" ]]; then
@@ -161,10 +174,6 @@ if [[ "$LISTE_PAQUETS" =~ "wireshark" ]]; then
     dpkg-reconfigure -f noninteractive wireshark-common
     usermod -aG wireshark $USER
 fi
-
-# Forcer la création de l'index
-echo "Indexation du système de fichiers (locate)..."
-updatedb
 
 # ==============================================================================
 # 6. CONFIGURATION DU FICHIER BASHRC
@@ -209,3 +218,6 @@ fi
 echo "=========================================================================="
 echo "Le script est terminée !"
 echo "=========================================================================="
+
+# Rechargement à chaud du terminal pour appliquer le nouveau .bashrc
+exec bash
