@@ -15,56 +15,66 @@ fi
 USER=$SUDO_USER
 if [ -z "$USER" ]; then USER=$(whoami); fi
 
-# ==============================================================================
-# 1. INSTALLATIONS DES PAQUETS DE BASE
-# ==============================================================================
-echo "Initialisation des dépôts..."
+# Détection de la distribution (Debian, Ubuntu, Mint...)
+DISTRO=$(lsb_release -is 2>/dev/null || cat /etc/os-release | grep -E '^ID=' | cut -d= -f2 | tr -d '"')
 
-if [ -f /etc/debian_version ]; then
-    echo "Configuration des dépôts Debian (Contrib & Non-Free)..."
+# ==============================================================================
+# 1. INITIALISATION DES DÉPÔTS SELON LA DISTRIBUTION
+# ==============================================================================
+# Si Debian : On active contrib et non-free
+if [ "$DISTRO" == "Debian" ] || [ -f /etc/debian_version ] && [ "$DISTRO" != "Ubuntu" ] && [ "$DISTRO" != "LinuxMint" ]; then
+    echo "Configuration des depots Debian (Contrib & Non-Free)..."
     sudo apt-get install -y software-properties-common
     sudo apt-add-repository contrib -y
     sudo apt-add-repository non-free -y
     sudo apt-add-repository non-free-firmware -y
 fi
 
+# Si on est sur Ubuntu ou Linux Mint : On s'assure d'activer le dépôt Multiverse pour Steam
+if [ "$DISTRO" == "Ubuntu" ] || [ "$DISTRO" == "LinuxMint" ]; then
+    echo "Configuration des depots Ubuntu/Mint (Multiverse)..."
+    sudo add-apt-repository multiverse -y
+fi
+
+echo "Rafraichissement des sources et installation de la base Sysadmin..."
 apt update
 
+# Installations des outils de base
 apt install -y whiptail flatpak zip locate ncdu curl git screen dnsutils \
                net-tools sudo lynx lsb-release winbind samba
 
+# Ajout du catalogue Flathub
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
 # ==============================================================================
 # 2. MENU DES PAQUETS
 # ==============================================================================
 
-CHOIX_PAQUETS=$(whiptail --title "Sélection des Logiciels" --checklist \
-"Appuyez sur ESPACE pour cocher/décocher, puis ENTRÉE pour valider :" 22 85 15 \
-"fastfetch"       "Affiche les infos du système au démarrage" ON \
-"htop"            "Gestionnaire de tâches classique en CLI" OFF \
-"btop"            "Gestionnaire de tâches moderne et magnifique" OFF \
-"vim"             "L'éditeur de texte incontournable (Sera mis par défaut)" ON \
-"openssh-server"  "Serveur SSH pour contrôler la machine à distance" ON \
-"wireshark"       "Analyseur de protocoles réseau" OFF \
-"cifs-utils"      "Outils de montage de partages réseau Windows/NAS" ON \
+CHOIX_PAQUETS=$(whiptail --title "Selection des Logiciels" --checklist \
+"Appuyez sur ESPACE pour cocher/decocher, puis ENTREE pour valider :" 22 85 15 \
+"fastfetch"       "Affiche les infos du systeme au demarrage" ON \
+"htop"            "Gestionnaire de taches classique en CLI" ON \
+"btop"            "Gestionnaire de taches moderne" ON \
+"vim"             "L editeur de texte incontournable (Sera mis par defaut)" ON \
+"openssh-server"  "Serveur SSH pour controler la machine a distance" ON \
+"wireshark"       "Analyseur de protocoles reseau" ON \
+"cifs-utils"      "Outils de montage de partages reseau Windows/NAS" ON \
 "thunderbird"     "Client de messagerie et calendrier complet" ON \
 "build-essential" "Compilateurs C/C++ et utilitaires de dev (make)" OFF \
 "docker.io"       "Moteur de conteneurs Docker" OFF \
 "filezilla"       "Client FTP/SFTP graphique" OFF \
-"vscode"          "Éditeur de code Visual Studio Code (Flatpak)" OFF \
-"gimp"            "Retouche d'images et dessin (Alternative Photoshop)" OFF \
-"obs-studio"      "Logiciel d'enregistrement d'écran et streaming" OFF \
-"audacity"        "Éditeur et enregistreur de fichiers audio" OFF \
-"copyq"           "Gestionnaire de presse-papier avancé" OFF \
-"piper"           "Configuration graphique des souris Gaming (Logitech...)" OFF \
+"steam"           "Plateforme de jeux video de Valve (APT)" OFF \
+"protonvpn"       "Client VPN officiel Proton GUI (Depot officiel .deb)" OFF \
+"vscode"          "Editeur de code Visual Studio Code (Flatpak)" OFF \
+"gimp"            "Retouche d images et dessin (Alternative Photoshop)" OFF \
+"obs-studio"      "Logiciel d enregistrement d ecran et streaming" OFF \
+"audacity"        "Editeur et enregistreur de fichiers audio" OFF \
+"copyq"           "Gestionnaire de presse-papier avance" OFF \
+"piper"           "Configuration graphique des souris Gaming" OFF \
 "flatseal"        "Gestionnaire de permissions pour les Flatpak" OFF \
-"bitwarden"       "Gestionnaire de mots de passe sécurisé (Flatpak)" OFF \
-"protonvpn"       "Client VPN sécurisé Proton (Flatpak)" OFF \
-"spotify"         "Client de streaming musical (Flatpak)" OFF \
-"discord"         "Messagerie et chat pour les communautés (Flatpak)" OFF \
-"steam"           "Plateforme de jeux vidéo de Valve" OFF \
-"lutris"          "Gestionnaire universel pour jeux Windows/Wine" OFF \
+"bitwarden"       "Gestionnaire de mots de passe securise (Flatpak)" OFF \
+"discord"         "Messagerie et chat pour les communautes (Flatpak)" OFF \
+"lutris"          "Gestionnaire universel pour jeux Windows/Wine (Flatpak)" OFF \
 "heroic"          "Launcher pour Epic Games et GOG (Flatpak)" OFF \
 "protonup-qt"     "Gestionnaire de versions de Proton pour le jeu (Flatpak)" OFF \
 "minecraft"       "Le launcher officiel du jeu Minecraft (Flatpak)" OFF \
@@ -77,13 +87,13 @@ LISTE_PAQUETS=$(echo "$CHOIX_PAQUETS" | tr -d '"')
 # ==============================================================================
 INTERFACE=$(ip -4 route show default | awk '{print $5}' | head -n1)
 
-whiptail --title "Configuration Réseau" --yesno "Voulez-vous configurer une IP FIXE ?\n(Si vous répondez non, la machine restera en DHCP)" 10 60
+whiptail --title "Configuration Reseau" --yesno "Voulez-vous configurer une IP FIXE ?\n(Si vous repondez non, la machine restera en DHCP)" 10 60
 CHOIX_RESEAU=$?
 
 if [ $CHOIX_RESEAU -eq 0 ]; then
-    IP_RESEAU=$(whiptail --inputbox "Entrez l'IP souhaitée + CIDR (ex: 192.168.1.50/24):" 10 60 "192.168.1.50/24" 3>&1 1>&2 2>&3)
-    GW_RESEAU=$(whiptail --inputbox "Entrez l'IP de la Gateway :" 10 60 "192.168.1.1" 3>&1 1>&2 2>&3)
-    DNS_RESEAU=$(whiptail --inputbox "Entrez l'IP du serveur DNS :" 10 60 "1.1.1.1" 3>&1 1>&2 2>&3)
+    IP_RESEAU=$(whiptail --inputbox "Entrez l IP souhaitee + CIDR (ex: 192.168.1.50/24):" 10 60 "192.168.1.50/24" 3>&1 1>&2 2>&3)
+    GW_RESEAU=$(whiptail --inputbox "Entrez l IP de la Gateway :" 10 60 "192.168.1.1" 3>&1 1>&2 2>&3)
+    DNS_RESEAU=$(whiptail --inputbox "Entrez l IP du serveur DNS :" 10 60 "1.1.1.1" 3>&1 1>&2 2>&3)
 
     if [ -d "/etc/netplan" ]; then
         cp /etc/netplan/*.yaml /etc/netplan/01-netcfg.yaml.bak 2>/dev/null
@@ -131,20 +141,20 @@ if [ $CHOIX_AD -eq 0 ]; then
 fi
 
 # ==============================================================================
-# 5. INSTALLATIONS DES LOGICIELLES
+# 5. INSTALLATIONS DES LOGICIELS
 # ==============================================================================
 clear
 echo "=========================================================================="
 echo "DEBUT DES INSTALLATIONS LOGICIELLES"
 echo "=========================================================================="
 
-# Mise à jour des paquets déjà présents
+# Mise à jour des paquets
 apt upgrade -y
 
 # 1. Tri et installation des paquets système via apt
 APTS_A_INSTALLER=""
 for p in $LISTE_PAQUETS; do
-    if [[ "$p" != "vscode" && "$p" != "bitwarden" && "$p" != "protonvpn" && "$p" != "spotify" && "$p" != "discord" && "$p" != "heroic" && "$p" != "protonup-qt" && "$p" != "minecraft" ]]; then
+    if [[ "$p" != "vscode" && "$p" != "bitwarden" && "$p" != "protonvpn" && "$p" != "spotify" && "$p" != "discord" && "$p" != "lutris" && "$p" != "heroic" && "$p" != "protonup-qt" && "$p" != "minecraft" ]]; then
         APTS_A_INSTALLER="$APTS_A_INSTALLER $p"
     fi
 done
@@ -154,15 +164,32 @@ if [ ! -z "$APTS_A_INSTALLER" ]; then
     apt install -y $APTS_A_INSTALLER
 fi
 
+if [[ "$LISTE_PAQUETS" =~ "protonvpn" ]]; then
+    echo "Recuperation dynamique et installation du depot Proton VPN..."
+    
+    URL_DEB=$(curl -s https://repo.protonvpn.com/debian/dists/stable/main/binary-all/ | grep -oE 'protonvpn-stable-release_[0-9.]+_all.deb' | head -n 1)
+    
+    if [ ! -z "$URL_DEB" ]; then
+        wget -q "https://repo.protonvpn.com/debian/dists/stable/main/binary-all/$URL_DEB"
+        dpkg -i "./$URL_DEB"
+        apt update
+        apt install -y proton-vpn-gnome-desktop
+        rm "./$URL_DEB"
+        echo "Proton VPN a ete installe avec succes."
+    else
+        echo "Echec : Impossible de detecter le paquet Proton VPN sur les serveurs officiels. Installation annulee."
+    fi
+fi
+
 # 2. Installation des applications choisies via FLATPAK
 FLATPAK_BIN="/usr/bin/flatpak"
 
 if [ -x "$FLATPAK_BIN" ]; then
     if [[ "$LISTE_PAQUETS" =~ "vscode" ]];      then $FLATPAK_BIN install flathub com.visualstudio.code -y; fi
     if [[ "$LISTE_PAQUETS" =~ "bitwarden" ]];   then $FLATPAK_BIN install flathub com.bitwarden.desktop -y; fi
-    if [[ "$LISTE_PAQUETS" =~ "protonvpn" ]];   then $FLATPAK_BIN install flathub ch.protonvpn.www -y; fi
     if [[ "$LISTE_PAQUETS" =~ "spotify" ]];     then $FLATPAK_BIN install flathub com.spotify.Client -y; fi
     if [[ "$LISTE_PAQUETS" =~ "discord" ]];     then $FLATPAK_BIN install flathub com.discordapp.Discord -y; fi
+    if [[ "$LISTE_PAQUETS" =~ "lutris" ]];      then $FLATPAK_BIN install flathub net.lutris.Lutris -y; fi
     if [[ "$LISTE_PAQUETS" =~ "heroic" ]];      then $FLATPAK_BIN install flathub com.heroicgameslauncher.hgl -y; fi
     if [[ "$LISTE_PAQUETS" =~ "protonup-qt" ]]; then $FLATPAK_BIN install flathub net.davidotek.pupgui2 -y; fi
     if [[ "$LISTE_PAQUETS" =~ "minecraft" ]];   then $FLATPAK_BIN install flathub com.mojang.Minecraft -y; fi
@@ -178,7 +205,7 @@ fi
 # ==============================================================================
 # 6. CONFIGURATION DU FICHIER BASHRC
 # ==============================================================================
-echo "Configuration de l'environnement par defaut"
+echo "Configuration de l environnement par defaut"
 
 # Définir Vim comme éditeur système par défaut
 if [ -x /usr/bin/vim ]; then
@@ -216,8 +243,7 @@ if [ "$USER" != "root" ] && [ -d "/home/$USER" ]; then
 fi
 
 echo "=========================================================================="
-echo "Le script est terminée !"
+echo "Le script est termine !"
 echo "=========================================================================="
 
-# Rechargement à chaud du terminal pour appliquer le nouveau .bashrc
-exec bash
+exec sudo -u $USER bash
